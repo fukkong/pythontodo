@@ -1,11 +1,7 @@
 .DS_Store
 *.pyc
 __pycache__
-settings.cfg
 
 /venv
 
-/api/dists
-/api/examples
-
-/fsmock
+.env

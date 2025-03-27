@@ -14,10 +14,11 @@
     <ul>
         {% for todo in todos %}
         <li>
+            {{ todo.id }}
             <button onclick="toggleTodo({{ todo.id }})">
-                {% if todo.done %}✅{% else %}⬜{% endif %}
+                {% if todo.completed %}✅{% else %}⬜{% endif %}
             </button>
-            {{ todo.task }}
+            {{ todo.title }}
             <button onclick="deleteTodo({{ todo.id }})">❌</button>
         </li>
         {% endfor %}
