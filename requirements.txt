@@ -1,14 +1,4 @@
 flask<3
 flask-mysql
-pymongo
-boto3
-requests
-pyjwt[crypto]
-sqids
-lz4
-gspread
-slack_bolt
+gunicorn
 python-dotenv
-
-
-gunicorn[gevent]
