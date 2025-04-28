@@ -1,4 +1,10 @@
 flask<3
 flask-mysql
-gunicorn
+boto3
+requests
+pyjwt[crypto]
+sqids
+
 python-dotenv
+
+gunicorn[gevent]
