@@ -1,16 +1,17 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app, abort, Response
 from werkzeug.utils import secure_filename
 
 import boto3
 import os
 import base64
+import requests
 
+from urllib.parse import urlparse
 from api.user import auth_user, get_user
 from ulid import ULID
 from api.dbutils import gcc
 
 from . import app
-
 
 if os.getenv("FLASK_ENV") == "development":
     # 로컬 개발 (환경변수 또는 aws configure 사용)
@@ -24,12 +25,11 @@ else:
     # EC2에서는 IAM Role로 자동 인증
     s3 = boto3.client('s3', region_name='ap-northeast-2')
 
-BUCKET_NAME = app.config.get('BUCKET_NAME')
-S3_REGION = app.config.get('AWS_DEFAULT_REGION')
-
 @app.route('/upload', methods=['POST'])
 @auth_user
 def upload_to_gallery(user_idx: int | None):
+    BUCKET_NAME = current_app.config.get('BUCKET_NAME')
+    S3_REGION = current_app.config.get('AWS_DEFAULT_REGION')
 
     file = request.files.get('file')
     thumbnail = request.files.get('thumbnail')
@@ -45,8 +45,8 @@ def upload_to_gallery(user_idx: int | None):
     tag = 'c'
     wip = False
     downloadable = False
-    license = None
-    print('savvvvve')
+    li = None
+    
     if not file or not title:
         return jsonify({'error': 'file and title are required'}), 400
 
@@ -84,7 +84,7 @@ def upload_to_gallery(user_idx: int | None):
         thumbnail_data = thumbnail.read() if thumbnail else None
         cursor.execute(sql, (
             file_ulid, user_idx, file_url, title, description, tag, # 유저아이디 그냥 박음
-            wip, downloadable, license, thumbnail_data
+            wip, downloadable, li, thumbnail_data
         ))
         conn.commit()
     except Exception as e:
@@ -160,3 +160,48 @@ def get_gallery_list():
     finally:
         cursor.close()
         conn.close()
+
+
+def parse_s3_url(file_url):
+    parsed = urlparse(file_url)
+    bucket = parsed.netloc.split('.')[0]  
+    key = parsed.path.lstrip('/')
+    return bucket, key
+
+@app.route('/works/<ulid>', methods=['get'])
+def get_gallery_work(ulid):
+    # TODO ulid 검증
+    conn, cursor = gcc()
+    print(ulid)
+    cursor.execute("SELECT file_url FROM feather_gallery_notes WHERE ulid = %s", (ulid,))
+    result = cursor.fetchone()
+    print(result)
+    if result is None or result["file_url"] is None:
+        return abort(404, description="File not found")
+
+    file_url = result["file_url"]
+    print(file_url)
+
+    bucket_name, key = parse_s3_url(file_url)
+    # 2. S3 (또는 다른 서버)에서 파일 다운로드 요청
+    try:
+        s3_response = s3.get_object(Bucket=bucket_name, Key=key)
+
+        # 2. 파일 데이터 스트리밍
+        file_stream = s3_response['Body']
+
+        # 3. Content-Type 설정 (없으면 기본값)
+        content_type = s3_response.get('ContentType', 'application/octet-stream')
+
+        return Response(
+            file_stream,
+            content_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{ulid}"'
+            }
+        )
+    except s3.exceptions.NoSuchKey:
+        abort(404, description="File not found")
+    except Exception as e:
+        print(e)
+        abort(500, description="Internal server error")

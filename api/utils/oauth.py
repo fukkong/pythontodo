@@ -68,7 +68,7 @@ def verify_id_token(token: str, audience: str = None): # openid
 		
 		# header['alg']
 		# , options={'verify_exp': False}
-		decoded = jwt.decode(token, pub_key, algorithms=['RS256'], audience=aud)
+		decoded = jwt.decode(token, pub_key, algorithms=['RS256'], audience=aud, leeway=10)
 		
 		return provider, decoded
 	

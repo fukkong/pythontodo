@@ -13,7 +13,7 @@ class Config:
 
     # s3
     AWS_DEFAULT_REGION = os.getenv('AWS_DEFAULT_REGION')
-    BUCKET_NAM= os.getenv('BUCKET_NAME')
+    BUCKET_NAME= os.getenv('BUCKET_NAME')
 
     # sign-in / login
     GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')

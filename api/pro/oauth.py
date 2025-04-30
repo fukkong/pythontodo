@@ -21,7 +21,7 @@ def login_user(provider: str, sub: str):
     conn, cursor = gcc()
     cursor.execute('SELECT `user_idx` FROM `feather_user_auth` WHERE `provider` = %s AND `sub` = %s AND `is_deleted` = 0;', (provider, sub,))
     row = cursor.fetchone()
-    print(row)
+    
     if row is not None:
         cursor.execute('SELECT `idx` FROM `feather_user_deletion` WHERE `user_idx` = %s AND `canceled_time` IS NULL AND `deleted_time` IS NULL;', (row['user_idx'],))
         delrow = cursor.fetchone()
@@ -29,10 +29,8 @@ def login_user(provider: str, sub: str):
             cursor.execute('UPDATE `feather_user_deletion` SET `canceled_time` = NOW() WHERE `idx` = %s;', (delrow['idx'],))
             conn.commit()
         
-        
-	
         user, shares = get_user(row['user_idx'])
-        print(user, shares)
+
         return {
 			'idx': row['user_idx'],
 			'user': user,
@@ -111,7 +109,7 @@ login 성공시 { user, shares, token }
 def oauth_google():
 	req = request.get_json()
 	code = req.get('code')
-	print(code)
+	
 	# ---------- TEST ----------
 	if current_app.debug and code in ('login', 'signup'):
 		if code == 'login': # 로그인
@@ -134,12 +132,12 @@ def oauth_google():
 
 	client_id = current_app.config.get('GOOGLE_OAUTH2_CLIENT_ID')
 	client_secret = current_app.config.get('GOOGLE_OAUTH2_CLIENT_SECRET')
-	print(client_id, client_secret)
+	
 	if not client_id or not client_secret:
 		return {'error': 'Bad Server'}, 500
 	
     # 일단 로컬에서 테스트할거니까...
-	redirect_uri = 'http://localhost:8000' 
+	redirect_uri = 'https://mark.local.softsket.ch' 
 	token_uri = 'https://oauth2.googleapis.com/token'
 	
 	# 왜 앱 로그인은 redirect_uri 를 https://feather.app 로만 줘야할까? 구글 콘솔에서 리다이렉트 유알엘이 이렇게 박혀있나보지뭐;
@@ -152,15 +150,12 @@ def oauth_google():
 		'code': code,
 		'redirect_uri': redirect_uri,
 	}).json()
-	print(1)
 	if 'error' in j:
 		error = ' '.join([j.get('error_description'), j['error']])
 		return {'error': error}, 500
 	if 'id_token' not in j:
 		# error
-		print(j)
 		return {'error': 'Failed to login (google)'}, 500
-	print(2)
 	id_token = j['id_token']
 	try:
 		provider, payload = verify_id_token(id_token, audience=client_id)
@@ -171,7 +166,6 @@ def oauth_google():
 	except:
 		traceback.print_exc()
 		return {'error': 'Failed to verify id_token'}, 500
-	print(3)
 	return finalize_oauth(id_token, provider, payload)
 	
 

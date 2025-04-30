@@ -8,3 +8,5 @@ sqids
 python-dotenv
 
 gunicorn[gevent]
+python-ulid
+flask-cors
