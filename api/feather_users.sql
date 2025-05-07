@@ -68,7 +68,8 @@ CREATE TABLE `feather_user_survey` (
 
 CREATE TABLE uploaded_files (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    ulid VARCHAR(26) NOT NULL UNIQUE,
+    ulid VARCHAR(26) NOT NULL UNIQUE, -- ulid가 아니라wid 나 idx로 쓰는게 나을듯.
+    -- ratio 추가 필요함 enum으로 '1/1', '4/3', '3/4'
     user_idx BIGINT NOT NULL,
     file_url TEXT NOT NULL,
     title VARCHAR(255) NOT NULL,

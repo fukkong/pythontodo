@@ -13,7 +13,7 @@ def auth_user(f):
 
 		try:
 			user_idx, payload = parse_token()
-			
+
 			if user_idx is not None:
 				conn, cursor = gcc()
 				cursor.execute('''SELECT
@@ -22,7 +22,7 @@ def auth_user(f):
 				WHERE T.`user_idx` = %s AND T.`iat` = %s AND T.`is_deleted` = 0;''', (
 					user_idx, payload['iat'],
 				))
-				print('whyyyyy')
+
 				result = cursor.fetchone()
 				print(result)
 
@@ -32,8 +32,7 @@ def auth_user(f):
 			import traceback
 			print('[auth_user error]')
 			traceback.print_exc()
-
-		
+				
 		return f(*args, **kwargs)
 	
 	return decorated_function

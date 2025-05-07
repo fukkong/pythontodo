@@ -172,16 +172,15 @@ def parse_s3_url(file_url):
 def get_gallery_work(ulid):
     # TODO ulid 검증
     conn, cursor = gcc()
-    print(ulid)
+    
     cursor.execute("SELECT file_url FROM feather_gallery_notes WHERE ulid = %s", (ulid,))
     result = cursor.fetchone()
-    print(result)
+    
     if result is None or result["file_url"] is None:
         return abort(404, description="File not found")
 
     file_url = result["file_url"]
-    print(file_url)
-
+    
     bucket_name, key = parse_s3_url(file_url)
     # 2. S3 (또는 다른 서버)에서 파일 다운로드 요청
     try:
@@ -205,3 +204,110 @@ def get_gallery_work(ulid):
     except Exception as e:
         print(e)
         abort(500, description="Internal server error")
+
+
+@app.route('/works/<string:wid>', methods=['DELETE'])
+@auth_user
+def delete_uploaded_file(wid, user_idx):
+    conn, cursor = gcc()
+    
+    try:
+        cursor.execute("SELECT user_idx FROM feather_gallery_notes WHERE ulid = %s", (wid,))
+        row = cursor.fetchone()
+
+        if not row:
+            return jsonify({'error': 'File not found'}), 404
+        if row['user_idx'] != user_idx:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        cursor.execute("DELETE FROM feather_gallery_notes WHERE ulid = %s", (wid,))
+        conn.commit()
+
+        return jsonify({'message': 'File deleted successfully'})
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/works/<string:wid>', methods=['PUT'])
+@auth_user
+def update_uploaded_file(wid, user_idx):
+    data = request.get_json()
+
+    license_map = {
+        'CC BY': 'CC-BY',
+        'CC BY-NC': 'CC-BY-NC',
+        'CC BY-ND': 'CC-BY-ND',
+        'CC BY-SA': 'CC-BY-SA',
+        'CC BY-NC-SA': 'CC-BY-NC-SA',
+        'CC BY-NC-ND': 'CC-BY-NC-ND'
+    }
+
+    title = data.get('title')
+    description = data.get('description')
+    tag_list = data.get('tags', [])
+    tag = ','.join(tag_list)
+    wip = data.get('wip', False)
+    downloadable = data.get('downloadable', True)
+    license_str = license_map.get(data.get('selectedCcOption'), None)
+
+    conn, cursor = gcc()
+    try:
+        cursor.execute("SELECT user_idx FROM feather_gallery_notes WHERE ulid = %s", (wid,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'File not found'}), 404
+        if row['user_idx'] != user_idx:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        cursor.execute("""
+            UPDATE feather_gallery_notes
+            SET title = %s,
+                description = %s,
+                tag = %s,
+                wip = %s,
+                downloadable = %s,
+                license = %s,
+                date_edited = CURRENT_TIMESTAMP
+            WHERE ulid = %s
+        """, (title, description, tag, wip, downloadable, license_str, wid))
+        conn.commit()
+
+        return jsonify({'message': 'File updated successfully'})
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/meta/<wid>', methods=['get'])
+def get_gallery_meta_data(wid):
+    conn, cursor = gcc()
+    cursor.execute("SELECT * FROM feather_gallery_notes WHERE ulid = %s", (wid,))
+    result = cursor.fetchone()
+
+    if result is None or result["file_url"] is None:
+        return abort(404)
+    
+    file_url = result["file_url"]
+    bucket_name, key = parse_s3_url(file_url)
+
+    try:
+        s3_response = s3.get_object(Bucket=bucket_name, Key=key)
+        file_bytes = s3_response['Body'].read()
+        encoded_file = base64.b64encode(file_bytes).decode('utf-8')  # <-- 핵심
+
+        return jsonify({
+            "title": result["title"],
+            "description": result["description"],
+            "license": result["license"],
+            "file": encoded_file,
+            "tag": result["tag"],
+            "wip": result["wip"],
+            "downloadable": result["downloadable"],
+            "created_at":result["created_at"],
+            "content_type": s3_response.get('ContentType', 'application/octet-stream')
+        })
+    except s3.exceptions.NoSuchKey:
+        abort(404)
+    except Exception as e:
+        print(e)
+        abort(500)

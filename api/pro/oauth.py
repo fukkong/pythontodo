@@ -18,27 +18,27 @@ tuple[
 ]
 """
 def login_user(provider: str, sub: str):
-    conn, cursor = gcc()
-    cursor.execute('SELECT `user_idx` FROM `feather_user_auth` WHERE `provider` = %s AND `sub` = %s AND `is_deleted` = 0;', (provider, sub,))
-    row = cursor.fetchone()
-    
-    if row is not None:
-        cursor.execute('SELECT `idx` FROM `feather_user_deletion` WHERE `user_idx` = %s AND `canceled_time` IS NULL AND `deleted_time` IS NULL;', (row['user_idx'],))
-        delrow = cursor.fetchone()
-        if delrow is not None:
-            cursor.execute('UPDATE `feather_user_deletion` SET `canceled_time` = NOW() WHERE `idx` = %s;', (delrow['idx'],))
-            conn.commit()
-        
-        user, shares = get_user(row['user_idx'])
+	conn, cursor = gcc()
+	cursor.execute('SELECT `user_idx` FROM `feather_user_auth` WHERE `provider` = %s AND `sub` = %s AND `is_deleted` = 0;', (provider, sub,))
+	row = cursor.fetchone()
+	
+	if row is not None:
+		cursor.execute('SELECT `idx` FROM `feather_user_deletion` WHERE `user_idx` = %s AND `canceled_time` IS NULL AND `deleted_time` IS NULL;', (row['user_idx'],))
+		delrow = cursor.fetchone()
+		if delrow is not None:
+			cursor.execute('UPDATE `feather_user_deletion` SET `canceled_time` = NOW() WHERE `idx` = %s;', (delrow['idx'],))
+			conn.commit()
+		
+		user, shares = get_user(row['user_idx'])
 
-        return {
+		return {
 			'idx': row['user_idx'],
 			'user': user,
 			'shares': shares,
 		}, None 
-    else: return None, None
-    
-    # TODO @kyu 몽고디비 연결 제외
+	else: return None, None
+	
+	# TODO @kyu 몽고디비 연결 제외
 	# 여기부터는 몽고디비에서 찾아서 사용자 반환함
 	# iss = None
 	# if provider == 'google':
@@ -75,7 +75,7 @@ def finalize_oauth(id_token: str, provider: str, payload: dict):
 			'token': token,
 		}
 	
-    # TODO @kyu 일단 애플 구현 제외
+	# TODO @kyu 일단 애플 구현 제외
 	# apple 로그인 후 payload 에 email 이 없는 경우가 있음
 	if 'email' not in payload:
 		print('email not in payload', file=sys.stderr)
@@ -136,13 +136,13 @@ def oauth_google():
 	if not client_id or not client_secret:
 		return {'error': 'Bad Server'}, 500
 	
-    # 일단 로컬에서 테스트할거니까...
+	# 일단 로컬에서 테스트할거니까...
 	redirect_uri = 'https://mark.local.softsket.ch' 
+	# redirect_uri = 'http://localhost:8000'
 	token_uri = 'https://oauth2.googleapis.com/token'
 	
 	# 왜 앱 로그인은 redirect_uri 를 https://feather.app 로만 줘야할까? 구글 콘솔에서 리다이렉트 유알엘이 이렇게 박혀있나보지뭐;
 	# redirect_uri = request.headers.get('Origin', 'https://feather.app') if req.get('gate') or req.get('login') else 'https://feather.app'
-    
 	j = requests.post(token_uri, data={
 		'grant_type': 'authorization_code',
 		'client_id': client_id,
