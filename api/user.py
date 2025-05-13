@@ -88,8 +88,8 @@ def get_user(idx: int, share=True):
 		U.`agree_email`, U.`agree_push`, U.`agree_time`,
 		UA.`about`, UA.`link_home`, UA.`link_instagram`, UA.`link_x`, UA.`link_tiktok`
 	FROM `feather_users` U
-	LEFT JOIN `feather_user_about` UA ON UA.`idx` = U.`user_idx`
-	WHERE U.`is_deleted` = 0 AND U.`user_idx` = %s;''', (idx,))
+	LEFT JOIN `feather_user_about` UA ON UA.`idx` = U.`idx`
+	WHERE U.`is_deleted` = 0 AND U.`idx` = %s;''', (idx,))
 	
 	row = cursor.fetchone()
 

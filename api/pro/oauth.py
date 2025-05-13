@@ -19,20 +19,20 @@ tuple[
 """
 def login_user(provider: str, sub: str):
 	conn, cursor = gcc()
-	cursor.execute('SELECT `user_idx` FROM `feather_user_auth` WHERE `provider` = %s AND `sub` = %s AND `is_deleted` = 0;', (provider, sub,))
+	cursor.execute('SELECT `idx` FROM `feather_user_auth` WHERE `provider` = %s AND `sub` = %s AND `is_deleted` = 0;', (provider, sub,))
 	row = cursor.fetchone()
 	
 	if row is not None:
-		cursor.execute('SELECT `idx` FROM `feather_user_deletion` WHERE `user_idx` = %s AND `canceled_time` IS NULL AND `deleted_time` IS NULL;', (row['user_idx'],))
+		cursor.execute('SELECT `idx` FROM `feather_user_deletion` WHERE `user_idx` = %s AND `canceled_time` IS NULL AND `deleted_time` IS NULL;', (row['idx'],))
 		delrow = cursor.fetchone()
 		if delrow is not None:
 			cursor.execute('UPDATE `feather_user_deletion` SET `canceled_time` = NOW() WHERE `idx` = %s;', (delrow['idx'],))
 			conn.commit()
-		
-		user, shares = get_user(row['user_idx'])
+		print(row)
+		user, shares = get_user(row['idx'])
 
 		return {
-			'idx': row['user_idx'],
+			'idx': row['idx'],
 			'user': user,
 			'shares': shares,
 		}, None 

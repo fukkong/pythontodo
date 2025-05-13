@@ -18,13 +18,13 @@ def check_handle_availability(handle: str, cursor = None) -> int:
 	if cursor is None:
 		conn, cursor = gcc()
 	
-	cursor.execute('SELECT `handle` FROM `todolist_db`.`feather_handle_denylist` WHERE `handle` = %s;', (handle,))
+	cursor.execute('SELECT `handle` FROM `feather_handle_denylist` WHERE `handle` = %s;', (handle,))
 	row = cursor.fetchone()
 	if row is not None: return -1
 
-	cursor.execute('SELECT `user_idx` FROM `feather_users` WHERE `handle` = %s FOR UPDATE;', (handle,))
+	cursor.execute('SELECT `idx` FROM `feather_users` WHERE `handle` = %s FOR UPDATE;', (handle,))
 	row = cursor.fetchone()
-	if row is not None: return row['user_idx']
+	if row is not None: return row['idx']
 
 	return 0
 
@@ -100,9 +100,8 @@ def user_signup():
 		else:
 			# 50번 동안 핸들을 정하지 못한 경우
 			return {'error': 'handleUnavailable'}, 500
-    
-    
-    # TODO kyu 우선 몽고디비는 aut
+			
+	# TODO kyu 우선 몽고디비는 aut
 	# find old user id
 	# mid = None
 	# try:
@@ -125,16 +124,16 @@ def user_signup():
 
 	# insert
 	cursor.execute('''
-        INSERT INTO `feather_users`
-        (`mid`, `handle`, `name`, `email`, `image`, `agree_email`, `agree_push`, `is_deleted`)
-        VALUES (NULL, %s, %s, %s, NULL, %s, %s, 0);
-        ''', (
-        handle,
-        name or handle,
-        payload.get('email') or '',
-        agree_email,
-        agree_push,
-    ))
+		INSERT INTO `feather_users`
+		(`mid`, `handle`, `name`, `email`, `image`, `agree_email`, `agree_push`, `is_deleted`)
+		VALUES (NULL, %s, %s, %s, NULL, %s, %s, 0);
+		''', (
+		handle,
+		name or handle,
+		payload.get('email') or '',
+		agree_email,
+		agree_push,
+	))
 	user_idx = cursor.lastrowid
 	
 	cursor.execute('INSERT INTO `feather_user_auth` VALUES (NULL, %s, %s, %s, NOW(), 0);', (
