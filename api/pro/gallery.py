@@ -281,7 +281,7 @@ def update_uploaded_file(wid, user_idx):
 				wip = %s,
 				downloadable = %s,
 				license = %s,
-				edited_time = CURRENT_TIMESTAMP
+				modified_time = CURRENT_TIMESTAMP
 			WHERE wid = %s
 		""", (title, description, wip, downloadable, license_str, wid))
 
@@ -294,8 +294,8 @@ def update_uploaded_file(wid, user_idx):
 				"INSERT INTO gallery_tags (tag) VALUES (%s) ON DUPLICATE KEY UPDATE idx = LAST_INSERT_ID(idx)",
 				(tag_name,)
 			)
-			cursor.execute("SELECT LAST_INSERT_ID()")
-			tag_id = cursor.fetchone()[0]
+			cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
+			tag_id = cursor.fetchone()['last_id']
 
 			cursor.execute(
 				"INSERT INTO gallery_work_tags (wid, tid) VALUES (%s, %s)",
@@ -431,7 +431,6 @@ def toggle_like(wid, user_idx):
 	finally:
 		cursor.close()
 		conn.close()
-
 
 @app.route('/work/<string:wid>/like-status', methods=['GET'])
 @auth_user

@@ -188,7 +188,7 @@ CREATE TABLE gallery_work_tags (
 CREATE TABLE gallery_comments (
   `idx` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `wid` CHAR(26) NOT NULL,
-  `parent_id` int(10) unsigned DEFAULT NULL,
+  `parent_idx` int(10) unsigned DEFAULT NULL,
   `user_idx` int(10) unsigned NOT NULL DEFAULT 0,
   `content` TEXT NOT NULL,
   `is_deleted` BOOLEAN DEFAULT FALSE,
@@ -196,6 +196,6 @@ CREATE TABLE gallery_comments (
   `modified_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`idx`),
   INDEX (wid),
-  INDEX (parent_id),
+  INDEX (parent_idx),
   INDEX (user_idx)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -30,7 +30,7 @@ def get_comments(wid):
 			u.handle, u.image 
 		FROM gallery_comments c
 		JOIN feather_users u ON c.user_idx = u.idx
-		WHERE c.wid = %s AND c.parent_id IS NULL AND c.is_deleted = FALSE
+		WHERE c.wid = %s AND c.parent_idx IS NULL AND c.is_deleted = FALSE
 		ORDER BY c.inserted_time ASC
 		LIMIT %s OFFSET %s
 	""", (wid, limit, offset))
@@ -43,13 +43,13 @@ def get_comments(wid):
 	if comment_ids:
 		format_strings = ','.join(['%s'] * len(comment_ids))
 		cursor.execute(f"""
-			SELECT parent_id, COUNT(*) as cnt
+			SELECT parent_idx, COUNT(*) as cnt
 			FROM gallery_comments
-			WHERE parent_id IN ({format_strings}) AND is_deleted = FALSE
-			GROUP BY parent_id
+			WHERE parent_idx IN ({format_strings}) AND is_deleted = FALSE
+			GROUP BY parent_idx
 		""", comment_ids)
 		for row in cursor.fetchall():
-			replies_count[row['parent_id']] = row['cnt']
+			replies_count[row['parent_idx']] = row['cnt']
 
 	# wrap up
 	result = []
@@ -78,11 +78,11 @@ def get_replies(comment_id):
 
 	cursor.execute("""
 		SELECT 
-			c.idx, c.content, c.is_deleted, c.inserted_time, c.parent_id,
+			c.idx, c.content, c.is_deleted, c.inserted_time, c.parent_idx,
 			u.handle, u.image
 		FROM gallery_comments c
 		JOIN feather_users u ON c.user_idx = u.idx
-		WHERE c.parent_id = %s
+		WHERE c.parent_idx = %s AND c.is_deleted = FALSE
 		ORDER BY c.inserted_time ASC
 		LIMIT %s OFFSET %s
 	""", (comment_id, limit, offset))
@@ -99,7 +99,7 @@ def get_replies(comment_id):
 			},
 			'content': None if row['is_deleted'] else row['content'],
 			'is_deleted': row['is_deleted'],
-			'parent_id': row['parent_id'],
+			'parent_idx': row['parent_idx'],
 			'inserted_time': row['inserted_time'].isoformat()
 		})
 
@@ -114,7 +114,7 @@ def post_comment(wid, user_idx):
 	
 	# TODO 추가적인 검증 및 욕설 필터 필요
 	content = data.get('content', '').strip()
-	parent_id = data.get('parent_id')
+	parent_idx = data.get('parent_idx')
 
 	if not content:
 		return jsonify({"error": "내용을 입력해주세요."}), 400
@@ -123,35 +123,35 @@ def post_comment(wid, user_idx):
 
 	try:
 		# parent idx 정리
-		actual_parent_id = None
+		actual_parent_idx = None
 
-		if parent_id:
+		if parent_idx:
 			cursor.execute("""
-				SELECT idx, user_idx, parent_id
+				SELECT idx, user_idx, parent_idx
 				FROM gallery_comments
 				WHERE idx = %s
-			""", (parent_id,))
+			""", (parent_idx,))
 			parent_row = cursor.fetchone()
 
 			if not parent_row:
 				return jsonify({"error": "존재하지 않는 댓글입니다."}), 404
 
 			# 3depth 방지: 대댓글의 부모를 최상위로 치환
-			if parent_row['parent_id'] is not None:
-				actual_parent_id = parent_row['parent_id']
+			if parent_row['parent_idx'] is not None:
+				actual_parent_idx = parent_row['parent_idx']
 			else:
-				actual_parent_id = parent_row['idx']
+				actual_parent_idx = parent_row['idx']
 
 		# 저장
 		cursor.execute("""
-			INSERT INTO gallery_comments (wid, parent_id, user_idx, content)
+			INSERT INTO gallery_comments (wid, parent_idx, user_idx, content)
 			VALUES (%s, %s, %s, %s)
-		""", (wid, actual_parent_id, user_idx, content))
+		""", (wid, actual_parent_idx, user_idx, content))
 		comment_id = cursor.lastrowid
 
 		# 저장된 댓글 불러오기
 		cursor.execute("""
-			SELECT c.idx, c.content, c.inserted_time, c.parent_id,
+			SELECT c.idx, c.content, c.inserted_time, c.parent_idx,
 				u.handle, u.image
 			FROM gallery_comments c
 			JOIN feather_users u ON c.user_idx = u.idx
@@ -165,7 +165,7 @@ def post_comment(wid, user_idx):
 			"idx": comment_row["idx"],
 			"content": comment_row["content"],
 			"inserted_time": comment_row["inserted_time"].isoformat(),
-			"parent_id": comment_row["parent_id"],
+			"parent_idx": comment_row["parent_idx"],
 			"user": {
 				"handle": comment_row["handle"],
 				"image": comment_row["image"]
@@ -190,6 +190,12 @@ def delete_comment(comment_id, user_idx):
 
 	if cursor.rowcount == 0:
 		return jsonify({"error": "삭제 권한이 없습니다."}), 403
+
+	cursor.execute("""
+		UPDATE gallery_comments
+		SET is_deleted = TRUE
+		WHERE parent_idx = %s
+	""", (comment_id))
 
 	conn.commit()
 	return jsonify({"success": True, "idx": comment_id})
