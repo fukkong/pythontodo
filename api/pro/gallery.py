@@ -25,13 +25,6 @@ else:
 	# EC2에서는 IAM Role로 자동 인증
 	s3 = boto3.client('s3', region_name='ap-northeast-2')
 
-def parse_s3_url(file_url):
-	parsed = urlparse(file_url)
-	bucket = parsed.netloc.split('.')[0]  
-	key = parsed.path.lstrip('/')
-	return bucket, key
-
-
 @app.route('/upload', methods=['POST'])
 @auth_user
 def upload_to_gallery(user_idx: int | None):
@@ -486,6 +479,263 @@ def get_download_url(wid, user_idx):
 	except Exception as e:
 		conn.rollback()
 		return jsonify({'error': '다운로드 기록 실패', 'details': str(e)}), 500
+	finally:
+		cursor.close()
+		conn.close()
+
+@app.route('/users/<string:user_handle>/likes', methods=['GET'])
+def get_liked_gallery_list(user_handle):
+	try:
+		page = int(request.args.get('page', 1))
+		size = int(request.args.get('size', 20))
+		if page < 1 or size < 1:
+			raise ValueError
+	except ValueError:
+		return jsonify({'error': 'Invalid page or size'}), 400
+
+	offset = (page - 1) * size
+
+	conn, cursor = gcc()
+
+	try:
+		# handle로 user_idx 조회
+		cursor.execute("SELECT idx FROM feather_users WHERE handle = %s AND is_deleted = 0", (user_handle,))
+		
+		user_row = cursor.fetchone()
+		if not user_row:
+			return jsonify({'error': 'User not found'}), 404
+
+		user_idx = user_row['idx']
+
+		# 전체 좋아요 수 (삭제된 작품 제외)
+		count_sql = """
+		SELECT COUNT(*) AS total
+		FROM gallery_work_likes gl
+		JOIN feather_gallery_works fw ON gl.wid = fw.wid
+		WHERE gl.user_idx = %s AND fw.is_deleted = 0;
+		"""
+		cursor.execute(count_sql, (user_idx,))
+		total = cursor.fetchone()['total']
+
+		# 좋아요한 작품 리스트
+		list_sql = """
+		SELECT
+			fw.wid,
+			fw.title,
+			fw.wip,
+			fw.downloadable,
+			fw.inserted_time,
+			fw.thumbnail,
+			fw.ratio,
+			u.handle AS author_handle,
+			u.image AS author_image,
+			COUNT(DISTINCT l.idx) AS like_count,
+			COUNT(DISTINCT d.idx) AS download_count
+		FROM gallery_work_likes gl
+		JOIN feather_gallery_works fw ON gl.wid = fw.wid
+		LEFT JOIN feather_users u ON fw.user_idx = u.idx
+		LEFT JOIN gallery_work_likes l ON fw.wid = l.wid
+		LEFT JOIN gallery_work_downloads d ON fw.wid = d.wid
+		WHERE gl.user_idx = %s AND fw.is_deleted = 0 AND u.is_deleted = 0
+		GROUP BY fw.wid
+		ORDER BY fw.inserted_time DESC
+		LIMIT %s OFFSET %s;
+		"""
+		cursor.execute(list_sql, (user_idx, size, offset))
+		rows = cursor.fetchall()
+
+		items = []
+		for row in rows:
+			items.append({
+				'wid': row['wid'],
+				'title': row['title'],
+				'thumbnail': row['thumbnail'],
+				'wip': row['wip'],
+				'ratio': row['ratio'],
+				'downloadable': row['downloadable'],
+				'inserted_time': row['inserted_time'].isoformat(),
+				'like_count': row['like_count'],
+				'download_count': row['download_count'],
+				'author': {
+					'handle': row['author_handle'],
+					'image': row['author_image']
+				}
+			})
+
+		return jsonify({
+			'page': page,
+			'size': size,
+			'total': total,
+			'items': items
+		})
+
+	except Exception as e:
+		conn.rollback()
+		return jsonify({'error': 'Database error', 'details': str(e)}), 500
+
+	finally:
+		cursor.close()
+		conn.close()
+
+
+@app.route('/users/<string:user_handle>/stats', methods=['GET'])
+def get_user_stats(user_handle):
+	conn, cursor = gcc()
+
+	try:
+		# 1. handle로 user_idx 조회
+		cursor.execute("SELECT idx FROM feather_users WHERE handle = %s AND is_deleted = 0", (user_handle,))
+		
+		user_row = cursor.fetchone()
+		if not user_row:
+			return jsonify({'error': 'User not found'}), 404
+
+		user_idx = user_row['idx']
+
+		sql = """
+		SELECT
+		  u.user_idx,
+
+		  -- 내가 올린 작품 수
+		  (SELECT COUNT(*) 
+		   FROM feather_gallery_works fw 
+		   WHERE fw.user_idx = u.user_idx AND fw.is_deleted = 0
+		  ) AS total_works,
+
+		  -- 내 작품이 받은 좋아요 수
+		  (SELECT COUNT(*) 
+		   FROM gallery_work_likes gl 
+		   JOIN feather_gallery_works fw2 ON gl.wid = fw2.wid 
+		   WHERE fw2.user_idx = u.user_idx AND fw2.is_deleted = 0
+		  ) AS total_likes,
+
+		  -- 내 작품이 받은 다운로드 수
+		  (SELECT COUNT(*) 
+		   FROM gallery_work_downloads gd 
+		   JOIN feather_gallery_works fw3 ON gd.wid = fw3.wid 
+		   WHERE fw3.user_idx = u.user_idx AND fw3.is_deleted = 0
+		  ) AS total_downloads,
+
+		  -- 내가 좋아요 누른 작품 수
+		  (SELECT COUNT(*) 
+		   FROM gallery_work_likes gl2
+		   JOIN feather_gallery_works fw4 ON gl2.wid = fw4.wid
+		   WHERE gl2.user_idx = u.user_idx AND fw4.is_deleted = 0
+		  ) AS liked_works
+
+		FROM (SELECT %s AS user_idx) u;
+		"""
+		cursor.execute(sql, (user_idx,))
+		row = cursor.fetchone()
+		
+		if not row:
+			return jsonify({'error': 'User not found'}), 404
+
+		result = {
+			'user_idx': row['user_idx'],
+			'total_works': row['total_works'],
+			'total_likes': row['total_likes'],
+			'total_downloads': row['total_downloads'],
+			'liked_works': row['liked_works']
+		}
+
+		return jsonify(result)
+
+	except Exception as e:
+		conn.rollback()
+		return jsonify({'error': 'Database error', 'details': str(e)}), 500
+
+	finally:
+		cursor.close()
+		conn.close()
+
+@app.route('/users/<string:user_handle>/works', methods=['GET'])
+def get_user_works(user_handle):
+	try:
+		page = int(request.args.get('page', 1))
+		size = int(request.args.get('size', 20))
+		if page < 1 or size < 1:
+			raise ValueError
+	except ValueError:
+		return jsonify({'error': 'Invalid page or size'}), 400
+
+	offset = (page - 1) * size
+	conn, cursor = gcc()
+	
+	try:
+		# handle로 user_idx 조회
+		cursor.execute("SELECT idx FROM feather_users WHERE handle = %s AND is_deleted = 0", (user_handle,))
+		
+		user_row = cursor.fetchone()
+		if not user_row:
+			return jsonify({'error': 'User not found'}), 404
+
+		user_idx = user_row['idx']
+		print('idx', user_idx)
+		# 전체 작품 수
+		count_sql = """
+		SELECT COUNT(*) AS total
+		FROM feather_gallery_works
+		WHERE is_deleted = 0 AND user_idx = %s;
+		"""
+		cursor.execute(count_sql, (user_idx,))
+		total = cursor.fetchone()['total']
+
+		# 작품 리스트 조회
+		list_sql = """
+		SELECT
+			n.wid,
+			n.title,
+			n.wip,
+			n.downloadable,
+			n.inserted_time,
+			n.thumbnail,
+			n.ratio,
+			u.handle AS author_handle,
+			u.image AS author_image,
+			COUNT(DISTINCT l.idx) AS like_count,
+			COUNT(DISTINCT d.idx) AS download_count
+		FROM feather_gallery_works n
+		LEFT JOIN feather_users u ON n.user_idx = u.idx
+		LEFT JOIN gallery_work_likes l ON n.wid = l.wid
+		LEFT JOIN gallery_work_downloads d ON n.wid = d.wid
+		WHERE n.is_deleted = 0 AND n.user_idx = %s AND u.is_deleted = 0
+		GROUP BY n.wid
+		ORDER BY n.inserted_time DESC
+		LIMIT %s OFFSET %s;
+		"""
+		cursor.execute(list_sql, (user_idx, size, offset))
+		rows = cursor.fetchall()
+
+		items = []
+		for row in rows:
+			items.append({
+				'wid': row['wid'],
+				'title': row['title'],
+				'thumbnail': row['thumbnail'],
+				'wip': row['wip'],
+				'ratio': row['ratio'],
+				'downloadable': row['downloadable'],
+				'inserted_time': row['inserted_time'].isoformat(),
+				'like_count': row['like_count'],
+				'download_count': row['download_count'],
+				'author': {
+					'handle': row['author_handle'],
+					'image': row['author_image']
+				}
+			})
+
+		return jsonify({
+			'page': page,
+			'size': size,
+			'total': total,
+			'items': items
+		})
+
+	except Exception as e:
+		conn.rollback()
+		return jsonify({'error': 'Database error', 'details': str(e)}), 500
+
 	finally:
 		cursor.close()
 		conn.close()

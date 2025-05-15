@@ -1,13 +1,28 @@
-from flask import request, current_app
+from flask import request, current_app, jsonify
+from werkzeug.utils import secure_filename
 import traceback
 import json
 import random
+import boto3
+import os
 
 from api.dbutils import gcc
-from api.user import auth_user, issue_token, get_user, parse_token
+from api.user import auth_user, issue_token, get_user, parse_token, get_user_by_handle
 from api.utils.oauth import verify_id_token
 
 from . import app
+
+# 로컬 개발
+if os.getenv("FLASK_ENV") == "development":
+	s3 = boto3.client(
+		's3',
+		aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+		aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+		region_name='ap-northeast-2'
+	)
+else:
+	# EC2에서는 IAM Role로 자동 인증
+	s3 = boto3.client('s3', region_name='ap-northeast-2')
 
 # handle 사용 여부 확인
 # 본인 handle 체크를 위해서 user_idx 를 반환함
@@ -203,10 +218,32 @@ def user_patch(user_idx: int | None):
 	if user is None:
 		return {'error': 'Unauthorized'}, 401
 	
-	req = request.get_json()
+	is_multipart = request.content_type.startswith('multipart/form-data')
+	req = request.form if is_multipart else request.get_json()
 
 	# feather_users
 	query_set, query_val = [], []
+
+	if is_multipart and 'file' in request.files:
+		image_file = request.files['file']
+		if image_file and image_file.filename != '':
+			filename = secure_filename(image_file.filename)
+			
+			BUCKET_NAME = current_app.config.get('BUCKET_NAME')
+			S3_REGION = current_app.config.get('AWS_DEFAULT_REGION')
+
+			s3_prefix = f'userThumbnail'
+
+			# 원본 파일 S3 업로드
+			ext = os.path.splitext(filename)[1]
+			s3_file_key = f'{s3_prefix}/{user_idx}{ext}'
+			file_url = f'https://{BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{s3_file_key}'
+
+			s3.upload_fileobj(image_file, BUCKET_NAME, s3_file_key)
+			
+			query_set += ['`image` = %s']
+			query_val += [file_url]
+			print(query_set, query_val)
 
 	agree = req.get('agree')
 	if agree is not None and (agree.get('email') != user['agree']['email'] or agree.get('push') != user['agree']['push']):
@@ -305,3 +342,11 @@ def dev_restore_note(device_idx: int | None):
 	remote_addr = request.headers.get('X-Forwarded-For') or request.remote_addr
 	if remote_addr == '127.0.0.1': pass
 	elif device_idx is None: return {'error': 'Unauthorized'}, 401
+
+
+@app.route('/users/<handle>', methods=['GET'])
+def get_user_by_handle_route(handle):
+	user = get_user_by_handle(handle)
+	if user is None:
+		return jsonify({'error': 'User not found'}), 404
+	return jsonify({'user': user})

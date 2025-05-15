@@ -113,3 +113,30 @@ def get_user(idx: int, share=True):
 	# 	shares = cursor.fetchall()
     
 	return row, shares
+
+
+def get_user_by_handle(handle: str):
+	conn, cursor = gcc()
+	cursor.execute('''SELECT
+		U.`handle`, U.`name`, U.`email`, U.`image`,
+		U.`agree_email`, U.`agree_push`, U.`agree_time`,
+		UA.`about`, UA.`link_home`, UA.`link_instagram`, UA.`link_x`, UA.`link_tiktok`
+	FROM `feather_users` U
+	LEFT JOIN `feather_user_about` UA ON UA.`idx` = U.`idx`
+	WHERE U.`is_deleted` = 0 AND U.`handle` = %s;''', (handle,))
+	
+	row = cursor.fetchone()
+
+	if row is None:
+		return None
+
+	bool_columns(row, ('agree_email', 'agree_push'))
+	group_column(row, 'agree')
+
+	for key in ('about', 'link_home', 'link_instagram', 'link_x', 'link_tiktok'):
+		if row[key] is None:
+			row[key] = ''
+	group_column(row, 'link')
+
+	return row
+    
