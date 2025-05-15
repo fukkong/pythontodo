@@ -47,3 +47,12 @@ def delete_todo(todo_id):
     cursor.close()
     conn.close()
     return jsonify({'status': 'ok'})
+
+
+@main_blueprint.route('/health_check')
+def health_check():
+	return 'ok'
+
+@main_blueprint.route('/robots.txt')
+def robots_txt():
+	return 'User-agent: *\nDisallow: /'

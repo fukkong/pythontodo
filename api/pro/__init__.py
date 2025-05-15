@@ -4,7 +4,7 @@ app = Blueprint('pro', __name__)
 from . import oauth
 from . import user
 from . import gallery
-from . import gallery_comment 
+from . import gallery_comment
 
 @app.route('/health_check')
 def health_check():
