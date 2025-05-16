@@ -199,3 +199,18 @@ CREATE TABLE gallery_comments (
   INDEX (parent_idx),
   INDEX (user_idx)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `gallery_work_viewcount` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `url` varchar(2048) NOT NULL,
+  `ip_address` varchar(45) NOT NULL,
+  `user_agent` text NOT NULL,
+  `referrer` varchar(2048) DEFAULT NULL,
+  `session_id` varchar(128) DEFAULT NULL,
+  `handle` varchar(32) DEFAULT NULL,
+  `viewed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_url` (`url`(255)),
+  KEY `idx_ip_url_time` (`ip_address`,`url`(255),`viewed_at`),
+  KEY `idx_session_time` (`session_id`,`viewed_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4;

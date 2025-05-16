@@ -251,11 +251,11 @@ def update_uploaded_file(wid, user_idx):
 
 	title = data.get('title')
 	description = data.get('description')
-	tag_list = data.get('tags', [])
+	tag_list = data.get('tags', []).split(',')
 	wip = data.get('wip', False)
 	downloadable = data.get('downloadable', True)
 	license_str = data.get('selectedCcOption', None)
-
+	
 	conn, cursor = gcc()
 	try:
 		# 권한 확인
@@ -288,8 +288,7 @@ def update_uploaded_file(wid, user_idx):
 				(tag_name,)
 			)
 			cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
-			tag_id = cursor.fetchone()['last_id']
-
+			tag_id = cursor.fetchone()['last_id']			
 			cursor.execute(
 				"INSERT INTO gallery_work_tags (wid, tid) VALUES (%s, %s)",
 				(wid, tag_id)
@@ -736,6 +735,59 @@ def get_user_works(user_handle):
 		conn.rollback()
 		return jsonify({'error': 'Database error', 'details': str(e)}), 500
 
+	finally:
+		cursor.close()
+		conn.close()
+
+
+def is_bot(user_agent):
+	bot_keywords = ['bot', 'crawl', 'spider', 'preview', 'slurp']
+	print(user_agent.lower())
+	return any(kw in user_agent.lower() for kw in bot_keywords)
+
+@app.route('/log-view', methods=['POST'])
+def log_view():
+	data = request.get_json()
+	print(data)
+	url = data.get('url')
+	print(url)
+	session_id = data.get('session_id')
+	referrer = request.headers.get('Referer')
+	ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+	user_agent = request.headers.get('User-Agent', '')
+	handle = data.get('handle')  # optional
+
+	if not url or is_bot(user_agent):
+		print('bot')
+		return '', 204  # 필수 정보 없거나 봇이면 무시
+
+	try:
+		conn, cursor = gcc()
+
+		# 중복 체크: 1시간 내 같은 IP + UA + URL
+		cursor.execute("""
+			SELECT id FROM gallery_work_viewcount
+			WHERE ip_address = %s AND url = %s AND user_agent = %s
+			AND viewed_at > NOW() - INTERVAL 1 HOUR
+			LIMIT 1
+		""", (ip, url, user_agent))
+
+		if cursor.fetchone():
+			print('recorded')
+			return '', 204  # 이미 기록된 경우
+
+		# 조회 기록 INSERT
+		cursor.execute("""
+			INSERT INTO gallery_work_viewcount (url, ip_address, user_agent, referrer, session_id, handle)
+			VALUES (%s, %s, %s, %s, %s, %s)
+		""", (url, ip, user_agent, referrer, session_id, handle))
+
+		conn.commit()
+		return '', 200
+
+	except Exception as e:
+		conn.rollback()
+		return jsonify({'error': '조회 기록 실패', 'details': str(e)}), 500
 	finally:
 		cursor.close()
 		conn.close()
