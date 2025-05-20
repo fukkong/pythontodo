@@ -135,108 +135,82 @@ def upload_to_gallery(user_idx: int | None):
 
 @app.route('/gallery/list', methods=['GET'])
 def get_gallery_list():
-    sort = request.args.get('sort', 'latest')
+	try:
+		page = int(request.args.get('page', 1))
+		size = int(request.args.get('size', 20))
+		if page < 1 or size < 1:
+			raise ValueError
+	except ValueError:
+		return jsonify({'error': 'Invalid page or size'}), 400
 
-    # 동적으로 SELECT 필드, JOIN, ORDER BY 구성
-    select_fields = [
-        "n.wid",
-        "n.title",
-        "n.wip",
-        "n.downloadable",
-        "n.inserted_time",
-        "n.thumbnail",
-        "n.ratio",
-        "u.handle AS author_handle",
-        "u.image AS author_image",
-        "COUNT(DISTINCT l.idx) AS like_count",
-        "COUNT(DISTINCT d.idx) AS download_count"
-    ]
+	offset = (page - 1) * size
 
-    if sort == 'popular':
-        select_fields.append("COUNT(DISTINCT v.id) AS view_count")
-        join_view = "LEFT JOIN gallery_work_viewcount v ON n.wid = v.wid"
-        order_clause = "ORDER BY like_count DESC, view_count DESC, n.inserted_time DESC"
-    else:
-        join_view = ""
-        order_clause = "ORDER BY n.inserted_time DESC"
+	conn, cursor = gcc()
 
-    fields_str = ",\n".join(select_fields)
+	try:
+		# 전체 작품 수
+		count_sql = "SELECT COUNT(*) AS total FROM feather_gallery_works WHERE is_deleted = 0;"
+		cursor.execute(count_sql)
+		total = cursor.fetchone()['total']
 
-    # 페이지 처리
-    try:
-        page = int(request.args.get('page', 1))
-        size = int(request.args.get('size', 20))
-        if page < 1 or size < 1:
-            raise ValueError
-    except ValueError:
-        return jsonify({'error': 'Invalid page or size'}), 400
+		# 작품 리스트 조회
+		list_sql = """
+		SELECT
+			n.wid,
+			n.title,
+			n.wip,
+			n.downloadable,
+			n.inserted_time,
+			n.thumbnail,
+			n.ratio,
+			u.handle AS author_handle,
+			u.image AS author_image,
+			COUNT(DISTINCT l.idx) AS like_count,
+			COUNT(DISTINCT d.idx) AS download_count
+		FROM feather_gallery_works n
+		LEFT JOIN feather_users u ON n.user_idx = u.idx
+		LEFT JOIN gallery_work_likes l ON n.wid = l.wid
+		LEFT JOIN gallery_work_downloads d ON n.wid = d.wid
+		WHERE n.is_deleted = 0 AND u.is_deleted = 0
+		GROUP BY n.wid
+		ORDER BY n.inserted_time DESC
+		LIMIT %s OFFSET %s;
+		"""
+		cursor.execute(list_sql, (size, offset))
+		rows = cursor.fetchall()
 
-    offset = (page - 1) * size
+		items = []
+		for row in rows:
+			items.append({
+				'wid': row['wid'],
+				'title': row['title'],
+				'thumbnail': row['thumbnail'],
+				'wip': row['wip'],
+				'ratio': row['ratio'],
+				'downloadable': row['downloadable'],
+				'inserted_time': row['inserted_time'].isoformat(),
+				'like_count': row['like_count'],
+				'download_count': row['download_count'],
+				'author': {
+					'handle': row['author_handle'],
+					'image': row['author_image']
+				}
+			})              
 
-    conn, cursor = gcc()
+		return jsonify({
+			'page': page,
+			'size': size,
+			'total': total,
+			'items': items
+		})
 
-    try:
-        # 전체 작품 수 조회
-        count_sql = "SELECT COUNT(*) AS total FROM feather_gallery_works WHERE is_deleted = 0;"
-        cursor.execute(count_sql)
-        total = cursor.fetchone()['total']
+	except Exception as e:
+		conn.rollback()
+		return jsonify({'error': 'Database error', 'details': str(e)}), 500
 
-        # 작품 리스트 쿼리
-        list_sql = f"""
-        SELECT
-            {fields_str}
-        FROM feather_gallery_works n
-        LEFT JOIN feather_users u ON n.user_idx = u.idx
-        LEFT JOIN gallery_work_likes l ON n.wid = l.wid
-        LEFT JOIN gallery_work_downloads d ON n.wid = d.wid
-        {join_view}
-        WHERE n.is_deleted = 0 AND u.is_deleted = 0
-        GROUP BY n.wid
-        {order_clause}
-        LIMIT %s OFFSET %s;
-        """
-
-        # 디버깅용 로그
-        # print("DEBUG SQL:\n", list_sql)
-
-        cursor.execute(list_sql, (size, offset))
-        rows = cursor.fetchall()
-
-        items = []
-        for row in rows:
-            item = {
-                'wid': row['wid'],
-                'title': row['title'],
-                'thumbnail': row['thumbnail'],
-                'wip': row['wip'],
-                'ratio': row['ratio'],
-                'downloadable': row['downloadable'],
-                'inserted_time': row['inserted_time'].isoformat(),
-                'like_count': row['like_count'],
-                'download_count': row['download_count'],
-                'author': {
-                    'handle': row['author_handle'],
-                    'image': row['author_image']
-                }
-            }
-            items.append(item)
-
-        return jsonify({
-            'page': page,
-            'size': size,
-            'total': total,
-            'items': items
-        })
-
-    except Exception as e:
-        conn.rollback()
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Database error', 'details': str(e)}), 500
-
-    finally:
-        cursor.close()
-        conn.close()
+	finally:
+		cursor.close()
+		conn.close()
 
 
 @app.route('/works/<string:wid>', methods=['DELETE'])
