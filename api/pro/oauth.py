@@ -138,7 +138,7 @@ def oauth_google():
 	
 	# 일단 로컬에서 테스트할거니까...
 	redirect_uri = 'https://kyu.softsket.ch' 
-	# redirect_uri = 'http://localhost:8000'
+	# redirect_uri = 'https://mark.local.softsket.ch'
 	token_uri = 'https://oauth2.googleapis.com/token'
 	
 	# 왜 앱 로그인은 redirect_uri 를 https://feather.app 로만 줘야할까? 구글 콘솔에서 리다이렉트 유알엘이 이렇게 박혀있나보지뭐;
