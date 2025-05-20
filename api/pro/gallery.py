@@ -5,6 +5,7 @@ import boto3
 import os
 import base64
 import requests
+import json
 
 from urllib.parse import urlparse
 from api.user import auth_user, get_user
@@ -25,7 +26,7 @@ else:
 	# EC2에서는 IAM Role로 자동 인증
 	s3 = boto3.client('s3', region_name='ap-northeast-2')
 
-@app.route('/upload', methods=['POST'])
+@app.route('/publish', methods=['POST'])
 @auth_user
 def upload_to_gallery(user_idx: int | None):
 	BUCKET_NAME = current_app.config.get('BUCKET_NAME')
@@ -33,14 +34,25 @@ def upload_to_gallery(user_idx: int | None):
 
 	file = request.files.get('file')
 	thumbnail = request.files.get('thumbnail')
-	title = request.form.get('title')
-	description = request.form.get('description')
-	tag_raw = request.form.get('tag', '')
-	wip = request.form.get('wip') == 'true'
-	downloadable = request.form.get('downloadable') == 'true'
-	license_str = request.form.get('license')
-	ratio = request.form.get('ratio')
+	# title = request.form.get('title')
+	# description = request.form.get('description')
+	# tag_raw = request.form.get('tag', '')
+	# wip = request.form.get('wip') == 'true'
+	
+	# license_str = request.form.get('license')
+	# ratio = request.form.get('ratio')
+	info_raw = request.form.get('info')
+	info = json.loads(info_raw) if info_raw else {}
 
+	# info 안에서 필요한 값 꺼내기
+	title = info.get('title')
+	description = info.get('description')
+	tag_raw = ''
+	wip = info.get('wip', False)
+	ratio = info.get('ratio')
+	license_str = info.get('license')
+	downloadable = True
+	print(file, title)
 	if license_str in (None, '', 'null', 'undefined'):
 		license_value = None
 	else:

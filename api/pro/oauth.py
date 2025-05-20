@@ -137,7 +137,7 @@ def oauth_google():
 		return {'error': 'Bad Server'}, 500
 	
 	# 일단 로컬에서 테스트할거니까...
-	redirect_uri = 'https://kyu.softsket.ch' 
+	redirect_uri = 'https://feather.app' 
 	# redirect_uri = 'https://mark.local.softsket.ch'
 	token_uri = 'https://oauth2.googleapis.com/token'
 	
