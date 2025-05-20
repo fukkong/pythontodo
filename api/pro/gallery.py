@@ -748,40 +748,39 @@ def is_bot(user_agent):
 @app.route('/log-view', methods=['POST'])
 def log_view():
 	data = request.get_json()
-	print(data) 
-	url = data.get('url')
-	print(url)
+
+	wid = data.get('wid')	
 	session_id = data.get('session_id')
 	referrer = request.headers.get('Referer')
 	ip = request.headers.get('X-Forwarded-For', request.remote_addr)
 	user_agent = request.headers.get('User-Agent', '')
 	handle = data.get('handle')  # optional
 
-	if not url or is_bot(user_agent):
+	if not wid or is_bot(user_agent):
 		print('bot')
 		return '', 204  # 필수 정보 없거나 봇이면 무시
 
 	try:
 		conn, cursor = gcc()
 
-		# 중복 체크: 1시간 내 같은 IP + UA + URL
-        # 나주에 id -> idx 로
+		# 중복 체크: 1시간 내 같은 IP + UA + wid
+		# 나주에 id -> idx 로
 		cursor.execute("""
 			SELECT id FROM gallery_work_viewcount
 			WHERE ip_address = %s AND wid = %s AND user_agent = %s
 			AND viewed_at > NOW() - INTERVAL 1 HOUR
 			LIMIT 1
 		""", (ip, wid, user_agent))
-
+		
 		if cursor.fetchone():
-			print('recorded')
 			return '', 204  # 이미 기록된 경우
+		
 
 		# 조회 기록 INSERT
 		cursor.execute("""
-			INSERT INTO gallery_work_viewcount (wid, ip_address, user_agent, referrer, session_id, handle)
+			INSERT INTO gallery_work_viewcount (ip_address, user_agent, referrer, session_id, handle, wid)
 			VALUES (%s, %s, %s, %s, %s, %s)
-		""", (wid, ip, user_agent, referrer, session_id, handle))
+		""", (ip, user_agent, referrer, session_id, handle, wid))
 
 		conn.commit()
 		return '', 200
