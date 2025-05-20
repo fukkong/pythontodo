@@ -766,7 +766,7 @@ def log_view():
 		# 중복 체크: 1시간 내 같은 IP + UA + wid
 		# 나주에 id -> idx 로
 		cursor.execute("""
-			SELECT id FROM gallery_work_viewcount
+			SELECT idx FROM gallery_work_viewcount
 			WHERE ip_address = %s AND wid = %s AND user_agent = %s
 			AND viewed_at > NOW() - INTERVAL 1 HOUR
 			LIMIT 1

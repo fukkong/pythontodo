@@ -202,7 +202,6 @@ CREATE TABLE gallery_comments (
 
 CREATE TABLE `gallery_work_viewcount` (
   `idx` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `url` varchar(2048) NOT NULL,
   `ip_address` varchar(45) NOT NULL,
   `user_agent` text NOT NULL,
   `referrer` varchar(2048) DEFAULT NULL,
@@ -210,8 +209,7 @@ CREATE TABLE `gallery_work_viewcount` (
   `handle` varchar(32) DEFAULT NULL,
   `viewed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `wid` CHAR(26) NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_url` (`url`(255)),
-  KEY `idx_ip_url_time` (`ip_address`,`url`(255),`viewed_at`),
+  PRIMARY KEY (`idx`),
+  KEY `idx_ip_wid_time` (`ip_address`,`wid`,`viewed_at`),
   KEY `idx_session_time` (`session_id`,`viewed_at`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4;
