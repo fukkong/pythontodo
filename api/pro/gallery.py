@@ -748,7 +748,7 @@ def is_bot(user_agent):
 @app.route('/log-view', methods=['POST'])
 def log_view():
 	data = request.get_json()
-	print(data)
+	print(data) 
 	url = data.get('url')
 	print(url)
 	session_id = data.get('session_id')
@@ -765,12 +765,13 @@ def log_view():
 		conn, cursor = gcc()
 
 		# 중복 체크: 1시간 내 같은 IP + UA + URL
+        # 나주에 id -> idx 로
 		cursor.execute("""
 			SELECT id FROM gallery_work_viewcount
-			WHERE ip_address = %s AND url = %s AND user_agent = %s
+			WHERE ip_address = %s AND wid = %s AND user_agent = %s
 			AND viewed_at > NOW() - INTERVAL 1 HOUR
 			LIMIT 1
-		""", (ip, url, user_agent))
+		""", (ip, wid, user_agent))
 
 		if cursor.fetchone():
 			print('recorded')
@@ -778,9 +779,9 @@ def log_view():
 
 		# 조회 기록 INSERT
 		cursor.execute("""
-			INSERT INTO gallery_work_viewcount (url, ip_address, user_agent, referrer, session_id, handle)
+			INSERT INTO gallery_work_viewcount (wid, ip_address, user_agent, referrer, session_id, handle)
 			VALUES (%s, %s, %s, %s, %s, %s)
-		""", (url, ip, user_agent, referrer, session_id, handle))
+		""", (wid, ip, user_agent, referrer, session_id, handle))
 
 		conn.commit()
 		return '', 200

@@ -8,7 +8,7 @@ from . import pro
 
 def create_app():
     app = Flask(__name__)
-    CORS(app,origins=["https://mark.local.softsket.ch", "http://localhost:8000","http://localhost:5173"], supports_credentials=True)
+    CORS(app,origins=["https://mark.local.softsket.ch", "http://localhost:8000","http://localhost:5173", "http://10.6.1.57:5173" ], supports_credentials=True)
 
     app.config.from_object('api.config.Config')
     
