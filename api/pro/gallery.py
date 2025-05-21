@@ -34,21 +34,14 @@ def upload_to_gallery(user_idx: int | None):
 
 	file = request.files.get('file')
 	thumbnail = request.files.get('thumbnail')
-	# title = request.form.get('title')
-	# description = request.form.get('description')
-	# tag_raw = request.form.get('tag', '')
-	# wip = request.form.get('wip') == 'true'
-	
-	# license_str = request.form.get('license')
-	# ratio = request.form.get('ratio')
 	info_raw = request.form.get('info')
 	info = json.loads(info_raw) if info_raw else {}
 
 	# info 안에서 필요한 값 꺼내기
 	title = info.get('title')
 	description = info.get('description')
-	tag_raw = ''
-	wip = info.get('wip', False)
+	tag_list = info.get('tags')
+	wip = info.get('wip', False) =='true'
 	ratio = info.get('ratio')
 	license_str = info.get('license')
 	downloadable = True
@@ -95,7 +88,7 @@ def upload_to_gallery(user_idx: int | None):
 	
 	thumbnail_url = f'https://{BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{s3_thumb_key}'
 	# 태그 파싱
-	tag_list = [t.strip() for t in tag_raw.split(',') if t.strip()]
+	
 
 	conn, cursor = gcc()
 
