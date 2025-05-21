@@ -136,9 +136,15 @@ def oauth_google():
 	if not client_id or not client_secret:
 		return {'error': 'Bad Server'}, 500
 	
-	# 일단 로컬에서 테스트할거니까...
+	# 기본 redirect_uri
 	redirect_uri = 'https://feather.app'
-	# redirect_uri = 'https://mark.local.softsket.ch'
+
+	# 클라이언트에서 redirect_uri를 보내줬다면 유효성 검사
+	req_redirect_uri = req.get('redirect_uri')
+
+	if req_redirect_uri == 'https://kyu.softsket.ch':
+		redirect_uri = req_redirect_uri
+
 	token_uri = 'https://oauth2.googleapis.com/token'
 	
 	# 왜 앱 로그인은 redirect_uri 를 https://feather.app 로만 줘야할까? 구글 콘솔에서 리다이렉트 유알엘이 이렇게 박혀있나보지뭐;

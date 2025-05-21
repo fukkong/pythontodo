@@ -40,7 +40,7 @@ def upload_to_gallery(user_idx: int | None):
 	# info 안에서 필요한 값 꺼내기
 	title = info.get('title')
 	description = info.get('description')
-	tag_list = info.get('tags')
+	tag_raw = info.get('tags')
 	wip = info.get('wip', False) =='true'
 	ratio = info.get('ratio')
 	license_str = info.get('license')
@@ -50,6 +50,7 @@ def upload_to_gallery(user_idx: int | None):
 		license_value = None
 	else:
 		license_value = license_str
+	tag_list = [t.strip() for t in tag_raw.split(',') if t.strip()]
 
 	if not file or not title:
 		return jsonify({'error': 'file and title are required'}), 400
