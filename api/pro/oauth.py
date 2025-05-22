@@ -142,7 +142,9 @@ def oauth_google():
 	# 클라이언트에서 redirect_uri를 보내줬다면 유효성 검사
 	req_redirect_uri = req.get('redirect_uri')
 
-	if req_redirect_uri == 'https://kyu.softsket.ch':
+	allowed_redirect_uris = ['https://kyu.softsket.ch', 'https://mark.local.softsket.ch','https://feather.app']
+
+	if req_redirect_uri in allowed_redirect_uris:
 		redirect_uri = req_redirect_uri
 
 	token_uri = 'https://oauth2.googleapis.com/token'
