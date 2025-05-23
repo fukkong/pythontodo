@@ -257,11 +257,12 @@ def update_uploaded_file(wid, user_idx):
 
 	title = data.get('title')
 	description = data.get('description')
-	tag_list = data.get('tags', []).split(',')
+	tags = data.get('tags', [])  # 태그는 리스트 형태로 받아야 함
+	tag_list = tags if isinstance(tags, list) else []
 	wip = data.get('wip', False)
 	downloadable = data.get('downloadable', True)
 	license_str = data.get('selectedCcOption', None)
-	
+
 	conn, cursor = gcc()
 	try:
 		# 권한 확인
@@ -289,12 +290,15 @@ def update_uploaded_file(wid, user_idx):
 
 		# 태그 재등록
 		for tag_name in tag_list:
+			tag_name = tag_name.strip()
+			if not tag_name:
+				continue
 			cursor.execute(
 				"INSERT INTO gallery_tags (tag) VALUES (%s) ON DUPLICATE KEY UPDATE idx = LAST_INSERT_ID(idx)",
 				(tag_name,)
 			)
 			cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
-			tag_id = cursor.fetchone()['last_id']			
+			tag_id = cursor.fetchone()['last_id']
 			cursor.execute(
 				"INSERT INTO gallery_work_tags (wid, tid) VALUES (%s, %s)",
 				(wid, tag_id)

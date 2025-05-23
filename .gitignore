@@ -5,7 +5,7 @@ __pycache__
 /venv
 
 .env
-kyu-learning.pem
 
 settings.json
-deply.sh
+deploy.sh
+*.pem
